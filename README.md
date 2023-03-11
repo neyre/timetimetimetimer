@@ -13,3 +13,7 @@
 - can't put everything on one side, not enough pins on 3.3V side without using the UART pins
 - enabling the watchdog creates problems when trying to push new firmware the watchdog resets it. 
 - Yellow, red, white are probably the best colors. Blue is hard to read with the white outlines.
+- trying to put all the screen control logic in the second thread leads to noticable delay
+
+## Opportunities for performance improvement
+- Right now, we're writing to the LEDs a lot. Writing only when the value is different would probably speed things up.
