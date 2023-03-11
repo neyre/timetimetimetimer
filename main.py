@@ -30,10 +30,13 @@ buz_exp = 0
 # Knob Position Storage Variables
 k1 = enc1.value()
 
+# class TimeTimer(object):
+#     def __init__(self, screen_clk, screen_dio, enc_clk, enc_dio):
+#         self.
 
 
-
-
+# Format time and show it on the display
+# Returns 1 if it should be buzzing, 0 if not.
 def disp_timer(scr, exp):
     t1 = exp - time.time()
     if t1 <= -1 * buzzer_duration: # Disabled
@@ -50,6 +53,15 @@ def disp_timer(scr, exp):
     return 0
 
 
+def update_timer(enc, old_val):
+    pass
+### TODO - MOVE UPDATE LOGIC TO THIS BLOCK
+### NEED TO FIGURE OUT STRATEGY WITH REGARDS TO GLOBAL VARIABLES
+### PROBABLY NEED TO ADD SOME OBJECT ORIENTED STUFF
+
+
+
+### TODO - MAKE UPDATE LOGIC ROUND UP TO THE NEAREST MINUTE WHEN TURNED, ETC
 
 
 while True:
