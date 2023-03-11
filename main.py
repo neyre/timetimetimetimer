@@ -10,8 +10,6 @@ import math
 # Constants
 ##########################
 
-buzzer_enabled = True
-buzzer_duration = 5
 buzzer_dutycycle = 200
 buzzer_frequency = 2
 
@@ -44,7 +42,7 @@ class TimeTimer(object):
 
         # Buzzing Status
         self.buzz = 0
-        self.notifier = 
+        self.notifier = False
 
 
     # Update and Display, Run Once per Loop
@@ -68,15 +66,17 @@ class TimeTimer(object):
     def display(self):
         
         # Timer Off State
-        if self.t <= -1 * buzzer_duration:
-            self.scr.show('    ')
+        if self.t <= -1:
+            pass
 
         # Timer Expired (Buzzing)
         elif self.t <= 0:
-            self.scr.show('good')
-            # _thread.start_new_thread(alarm, ())
-            self.buzz = 1
-            return
+
+            # Spawn Notifier
+            if self.notifier == False:
+                _thread.start_new_thread(alarm, (self,))
+                self.notifier = True
+                print('spawn thread')
 
         # Short Duration, Show Seconds
         # Skip if in Update Window
@@ -90,15 +90,16 @@ class TimeTimer(object):
         # Long Duation, Show Hours and Minutes 
         else: 
             self.scr.numbers(self.h, self.m_disp, colon=True)
-        
-        # Turn off Buzz
-        self.buzz = 0
 
     # See if Knob has Changed, Update if So
     def update(self):
         
         k_new = self.enc.value()
         self.enc.reset()
+
+        # Don't update if notifier is running
+        if self.notifier:
+            return
 
         # Increase Timer
         if k_new > 0:
@@ -122,22 +123,38 @@ class TimeTimer(object):
         # Update timer and set into update mode
         if k_new != 0:
             t_new = self.m_total*60 + self.s
+            if t_new < 0:
+                t_new = 0
             self.exp = time.time() + t_new
             self.update_exp = time.time() + knob_dwell
+            self.notifier = False
+
+##########################
+# Alarm to be run in another thread
+##########################
+
+def alarm(tt):
+
+    # Turn on Buzzer
+    buzzer.duty(buzzer_dutycycle)
+
+    # Print Scrolling Message
+    segments = tt.scr.encode_string('food is good')
+    data = [0] * 8
+    data[4:0] = list(segments)
+    for i in range(len(segments) + 5):
+        tt.scr.write(data[0+i:4+i])
+        time.sleep_ms(200)
+
+    # Turn off Buzzer
+    buzzer.duty(0)
+    tt.notifier = False;
 
 ##########################
 # Initialize Hardware and Objects
 ##########################
 
-def alarm():
-    print('hi')
-    pass
-
-##########################
-# Initialize Hardware and Objects
-##########################
-
-watchdog = WDT(timeout=1000)
+# watchdog = WDT(timeout=1000)
 esp32.wake_on_ext0(Pin(34), esp32.WAKEUP_ANY_HIGH)  # Waking from deep sleep on knob movement
 
 t1 = TimeTimer(26, 25, 35, 34)
@@ -152,12 +169,4 @@ buzzer.duty(0)
 while True:
     t1.run()
 
-    if buzzer_enabled:
-        buzz = t1.buzz + t1.buzz + t1.buzz
-        if buzz > 0:
-            buzzer.duty(buzzer_dutycycle)
-        else:
-            buzzer.duty(0)
-
-    watchdog.feed()
-
+    # watchdog.feed()
