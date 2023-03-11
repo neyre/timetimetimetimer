@@ -1,7 +1,7 @@
 import _thread
 import esp32
 import time
-from machine import Pin, PWM, WDT
+from machine import Pin, PWM, WDT, freq
 from rotary_irq_esp import RotaryIRQ
 import tm1637
 import math
@@ -12,9 +12,10 @@ import math
 
 buzzer_dutycycle = 200
 buzzer_frequency = 2
+buzzer_duration = 3
 
-short_duration = 7.5 # Show seconds below this # of mins, must be < 60
-screen_brightness = 4 # Range of 1-7
+short_duration = 5.5 # Show seconds below this # of mins, must be < 60
+screen_brightness = 2 # Range of 1-7, 2 for white, 4 for other colors
 knob_dwell = 3 # Stay in update mode for this long after an update
 
 ##########################
@@ -22,8 +23,7 @@ knob_dwell = 3 # Stay in update mode for this long after an update
 ##########################
 
 class TimeTimer(object):
-
-    def __init__(self, screen_clk, screen_dio, enc_clk, enc_dio):
+    def __init__(self, screen_clk, screen_dio, enc_clk, enc_dio, brt):
 
         # Setup Encoder
         self.enc = RotaryIRQ(pin_num_clk=enc_clk, pin_num_dt=enc_dio, min_val=0, half_step=True, reverse=False)
@@ -31,18 +31,16 @@ class TimeTimer(object):
         # Setup Screen
         self.scr = tm1637.TM1637(clk=Pin(screen_clk), dio=Pin(screen_dio))
         self.scr.show('    ')
-        self.scr.brightness(screen_brightness)
+        self.scr.brightness(brt)
 
         # Expiration Time
         self.exp = 0    # End of Timer
         self.update_exp = 0   # End of Update Mode
 
-        # Knob Old Position
-        self.knob = 0
-
-        # Buzzing Status
-        self.buzz = 0
-        self.notifier = False
+        #  0 = Off
+        # -1 = Notifying
+        #  1 = Running
+        self.status = 0
 
 
     # Update and Display, Run Once per Loop
@@ -58,29 +56,24 @@ class TimeTimer(object):
         self.m_total = math.floor(self.t/60) # Total Mins (e.g. 61 instead of 1:01)
         self.s = math.ceil(self.t%60)
 
-        self.update()
-        self.display()
+        # Time's up - start alarm
+        if self.status == 1 and self.t <= 0:
+            self.status = -1
+            _thread.start_new_thread(alarm, (self,buz,))
+
+        # Timer Running
+        elif self.status == 1:
+            self.display_time()
+
+        self.knob_handle()
+
 
     # Format time and show it on the display
-    # Returns 1 if it should be buzzing, 0 if not.
-    def display(self):
-        
-        # Timer Off State
-        if self.t <= -1:
-            pass
-
-        # Timer Expired (Buzzing)
-        elif self.t <= 0:
-
-            # Spawn Notifier
-            if self.notifier == False:
-                _thread.start_new_thread(alarm, (self,))
-                self.notifier = True
-                print('spawn thread')
+    def display_time(self):
 
         # Short Duration, Show Seconds
         # Skip if in Update Window
-        elif self.update_exp-time.time() <= 0 and self.t < short_duration*60:
+        if self.update_exp-time.time() <= 0 and self.t < short_duration*60:
             self.scr.numbers(self.m_total, self.s, colon=True)
         
         # Medium Duration, Show Just Minutes
@@ -92,75 +85,106 @@ class TimeTimer(object):
             self.scr.numbers(self.h, self.m_disp, colon=True)
 
     # See if Knob has Changed, Update if So
-    def update(self):
+    def knob_handle(self):
         
+        # See which direction knob has moved
         k_new = self.enc.value()
         self.enc.reset()
-
-        # Don't update if notifier is running
-        if self.notifier:
-            return
 
         # Increase Timer
         if k_new > 0:
             if self.t <= 0:
-                self.s = 0
-                self.m_total = 1
-            else:
-                self.s = knob_dwell - 1
-                self.m_total += 1
+                self.m_total = 0
+            
+            self.m_total += 1
+            self.s = knob_dwell - 1
+
+            # Turn on Timer
+            self.status = 1
 
         # Decrease Timer
         if k_new < 0:
-            if self.t <= 0:
-                pass
-            elif self.s <= knob_dwell:
-                self.s = knob_dwell - 1
+
+            # Turn off Timer if alarming
+            if self.status == -1:
+                self.status = 0
+                return
+
+            if self.s <= knob_dwell:
                 self.m_total -= 1
-            else:
-                self.s = knob_dwell - 1
+                
+            self.s = knob_dwell - 1
 
         # Update timer and set into update mode
         if k_new != 0:
             t_new = self.m_total*60 + self.s
-            if t_new < 0:
+            if t_new <= 0:
                 t_new = 0
+
             self.exp = time.time() + t_new
             self.update_exp = time.time() + knob_dwell
-            self.notifier = False
+
+
+class BuzzerMinder(object):
+    def __init__(self, pin_num):
+        self.buzzer = PWM(Pin(pin_num))
+        self.buzzer.duty(0)
+        self.buzzer.freq(buzzer_frequency)
+        self.buzzer_end = 0
+
+    def run(self):
+        if self.buzzer_end - time.time() <= 0:
+            self.off()
+
+    def off(self):
+        self.buzzer.duty(0)
+        self.buzzer_end = 0
+
+    def on(self):
+        self.buzzer_end = time.time() + buzzer_duration
+        self.buzzer.duty(buzzer_dutycycle)
+
+
 
 ##########################
 # Alarm to be run in another thread
 ##########################
 
-def alarm(tt):
+def alarm(tt, bz):
 
     # Turn on Buzzer
-    buzzer.duty(buzzer_dutycycle)
-
-    # Print Scrolling Message
-    segments = tt.scr.encode_string('food is good')
+    bz.on()
+        
+    # Scrolling Message
+    segments = tt.scr.encode_string('food is good    ')
     data = [0] * 8
     data[4:0] = list(segments)
     for i in range(len(segments) + 5):
+
+        # Exit if notification is over
+        if tt.status != -1:
+            tt.scr.show('    ')
+            bz.off()
+            return
+
+        # Write Scrolling Message
         tt.scr.write(data[0+i:4+i])
         time.sleep_ms(200)
 
-    # Turn off Buzzer
-    buzzer.duty(0)
-    tt.notifier = False;
+    tt.status = 0
 
 ##########################
 # Initialize Hardware and Objects
 ##########################
 
-# watchdog = WDT(timeout=1000)
-esp32.wake_on_ext0(Pin(34), esp32.WAKEUP_ANY_HIGH)  # Waking from deep sleep on knob movement
+freq(80000000) # Underclock to 80MHz to save power, keep things cooler, why not
+# watchdog = WDT(timeout=1000) # Skip it, causes trouble when loading new firmware
+# esp32.wake_on_ext0(Pin(34), esp32.WAKEUP_ANY_HIGH)  # Waking from deep sleep on knob movement
 
-t1 = TimeTimer(26, 25, 35, 34)
-buzzer = PWM(Pin(32))
-buzzer.freq(buzzer_frequency)
-buzzer.duty(0)
+t1 = TimeTimer(25, 33, 35, 34, screen_brightness)
+t2 = TimeTimer(26, 27, 14, 12, screen_brightness)
+t3 = TimeTimer(21, 19, 18, 5, screen_brightness)
+buz = BuzzerMinder(32)
 
 ##########################
 # Main Loop
@@ -168,5 +192,6 @@ buzzer.duty(0)
 
 while True:
     t1.run()
-
-    # watchdog.feed()
+    t2.run()
+    t3.run()
+    buz.run()
