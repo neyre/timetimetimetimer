@@ -1,5 +1,7 @@
+import _thread
+import esp32
 import time
-from machine import Pin, PWM
+from machine import Pin, PWM, WDT
 from rotary_irq_esp import RotaryIRQ
 import tm1637
 import math
@@ -42,6 +44,7 @@ class TimeTimer(object):
 
         # Buzzing Status
         self.buzz = 0
+        self.notifier = 
 
 
     # Update and Display, Run Once per Loop
@@ -70,7 +73,8 @@ class TimeTimer(object):
 
         # Timer Expired (Buzzing)
         elif self.t <= 0:
-            self.scr.number(0)
+            self.scr.show('good')
+            # _thread.start_new_thread(alarm, ())
             self.buzz = 1
             return
 
@@ -113,7 +117,7 @@ class TimeTimer(object):
                 self.s = knob_dwell - 1
                 self.m_total -= 1
             else:
-                self.s = knob_dwell
+                self.s = knob_dwell - 1
 
         # Update timer and set into update mode
         if k_new != 0:
@@ -124,6 +128,17 @@ class TimeTimer(object):
 ##########################
 # Initialize Hardware and Objects
 ##########################
+
+def alarm():
+    print('hi')
+    pass
+
+##########################
+# Initialize Hardware and Objects
+##########################
+
+watchdog = WDT(timeout=1000)
+esp32.wake_on_ext0(Pin(34), esp32.WAKEUP_ANY_HIGH)  # Waking from deep sleep on knob movement
 
 t1 = TimeTimer(26, 25, 35, 34)
 buzzer = PWM(Pin(32))
@@ -143,3 +158,6 @@ while True:
             buzzer.duty(buzzer_dutycycle)
         else:
             buzzer.duty(0)
+
+    watchdog.feed()
+
