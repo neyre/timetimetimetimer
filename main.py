@@ -12,7 +12,6 @@ import math
 
 buzzer_duration = 6
 short_duration = 5.5 # Show seconds below this # of mins, must be < 60
-screen_brightness = 2 # Range of 1-7, 2 for white, 4 for other colors
 knob_dwell = 3 # Stay in update mode for this long after an update
 
 ##########################
@@ -221,15 +220,15 @@ freq(80000000) # Underclock to 80MHz to save power, keep things cooler, why not
 # watchdog = WDT(timeout=1000) # Skip it, causes trouble when loading new firmware
 # esp32.wake_on_ext0(Pin(34), esp32.WAKEUP_ANY_HIGH)  # Waking from deep sleep on knob movement
 
-t1 = TimeTimer(25, 33, 35, 34, screen_brightness, 1)
-t2 = TimeTimer(26, 27, 14, 12, screen_brightness, 2)
-t3 = TimeTimer(21, 19, 18, 5, screen_brightness, 3)
+t1 = TimeTimer(25, 33, 35, 34, 2, 1)
+t2 = TimeTimer(26, 27, 14, 12, 3, 2)
+t3 = TimeTimer(21, 19, 18, 5, 1, 3)
 buz = BuzzerMinder(32)
 
 # Display Power-On Message
-t1.scr.show(' 1  ')
-t2.scr.show('  2 ')
-t3.scr.show('   3')
+t1.scr.show('11  ')
+t2.scr.show(' 22 ')
+t3.scr.show('  33')
 time.sleep(1)
 t1.scr.write([61, 0b01011100, 0b01011100, 94])
 t2.scr.write([61, 0b01011100, 0b01011100, 94])
