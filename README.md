@@ -6,7 +6,9 @@ A time timer with three time time timers.
 - [Encoder I bought (3, sold in pack of 5)](https://www.amazon.com/dp/B07F26CT6B)
 - [Buzzer I bought (1, sold in pack of 5)](https://www.amazon.com/dp/B07MPYWVGD)
 
-It's easiest to de-solder the headers from all of the boards (easy with a bit of solder wick) and solder wires to them. Some tape and zipties helps keep the many wires organized.
+It's easiest to de-solder the headers from all of the boards (easy with a bit of solder wick) and solder wires to them. Some tape and zipties helps keep the many wires organized. I daisy-chained power and gnd across the displays and across the knobs to keep them tidier. Doing most of the soldering before installing it into the housing made it easiest.
+
+Most stuff is held into the housing with M2 screws forced into the 3D printed plastic.
 
 Wire the buzzer with its gnd & IO pins to ground, and the VCC pin to the digital output of the MCU. It buzzes when IO is pulled low, so this prevents it from buzzing until the MCU commands it.
 
